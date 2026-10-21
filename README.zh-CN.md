@@ -51,13 +51,11 @@ OpenJetLag 是一个开源的 [MCP](https://modelcontextprotocol.io)（Model Con
 ```sh
 git clone https://github.com/willbuildtolast/openjetlag-mcp && cd openjetlag-mcp
 npm install
-npm run build -w @openjetlag/core
-cd packages/mcp-server
 npx wrangler login
 npm run deploy
 ```
 
-MCP 地址为输出的网址加上 `/mcp`。
+MCP 地址为输出的网址加上 `/mcp`。**详细的图文步骤（含推送自动部署、用量查看、自定义域名）见 [docs/DEPLOY.zh-CN.md](docs/DEPLOY.zh-CN.md)。**
 
 **Node.js**（Node 20+）：`npm install && npm run build`，然后 `PORT=8787 HOST=0.0.0.0 npm start -w @openjetlag/mcp-server`。连接云端 agent 前请配置 HTTPS。
 

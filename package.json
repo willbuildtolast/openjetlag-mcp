@@ -13,7 +13,8 @@
     "build": "npm run build -w @openjetlag/core && npm run build -w @openjetlag/mcp-server",
     "typecheck": "npm run build -w @openjetlag/core && npm run typecheck --workspaces",
     "test": "npm run build -w @openjetlag/core && npm test --workspaces",
-    "dev": "npm run build -w @openjetlag/core && npm run dev -w @openjetlag/mcp-server"
+    "dev": "npm run build -w @openjetlag/core && npm run dev -w @openjetlag/mcp-server",
+    "deploy": "npm run build -w @openjetlag/core && npm run deploy -w @openjetlag/mcp-server"
   },
   "engines": {
     "node": ">=20"

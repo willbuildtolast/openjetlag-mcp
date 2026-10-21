@@ -62,13 +62,13 @@ This is **educational guidance, not medical advice**. Plans never include a mela
 ```sh
 git clone https://github.com/willbuildtolast/openjetlag-mcp && cd openjetlag-mcp
 npm install
-npm run build -w @openjetlag/core
-cd packages/mcp-server
 npx wrangler login
 npm run deploy        # prints https://openjetlag-mcp.<you>.workers.dev
 ```
 
 Your MCP URL is that address plus `/mcp`. `GET /health` returns the version.
+
+To deploy automatically on every push to `main` (after tests pass), add `CLOUDFLARE_API_TOKEN` (template "Edit Cloudflare Workers") and `CLOUDFLARE_ACCOUNT_ID` as repository secrets; see [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). A step-by-step guide in Chinese is in [docs/DEPLOY.zh-CN.md](docs/DEPLOY.zh-CN.md).
 
 **Node.js** (any VPS or container, Node 20+):
 
