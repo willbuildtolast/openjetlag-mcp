@@ -1,0 +1,9 @@
+name = "openjetlag-mcp"
+main = "src/worker.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Stateless: no KV, Durable Objects or other bindings are needed.
+# Observability logs carry request metadata only; the server never logs tool arguments.
+[observability]
+enabled = true

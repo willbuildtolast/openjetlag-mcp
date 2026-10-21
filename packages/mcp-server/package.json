@@ -1,0 +1,30 @@
+{
+  "name": "@openjetlag/mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Stateless remote MCP server exposing the OpenJetLag engine to AI agents.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "tsx watch src/node.ts",
+    "start": "node dist/node.js",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@cfworker/json-schema": "^4.1.1",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@openjetlag/core": "0.2.0",
+    "zod": "^3.25.0",
+    "@hono/node-server": "^1.14.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "~5.8.2",
+    "vitest": "^3.2.0",
+    "wrangler": "^4.40.0"
+  }
+}

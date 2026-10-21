@@ -1,0 +1,21 @@
+{
+  "name": "openjetlag-mcp",
+  "private": true,
+  "version": "0.1.0",
+  "description": "OpenJetLag: a jet lag coach for personal AI agents, as a remote MCP server.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/core",
+    "packages/mcp-server"
+  ],
+  "scripts": {
+    "build": "npm run build -w @openjetlag/core && npm run build -w @openjetlag/mcp-server",
+    "typecheck": "npm run build -w @openjetlag/core && npm run typecheck --workspaces",
+    "test": "npm run build -w @openjetlag/core && npm test --workspaces",
+    "dev": "npm run build -w @openjetlag/core && npm run dev -w @openjetlag/mcp-server"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
