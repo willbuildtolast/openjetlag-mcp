@@ -30,7 +30,12 @@ npm run dev
 npx @modelcontextprotocol/inspector
 ```
 
-在浏览器打开的页面里，把 Transport Type 选为 **Streamable HTTP**，URL 填 `http://127.0.0.1:8787/mcp`，点 **Connect**，再到 **Tools** 标签点 **List Tools**，就能看到三个工具并手动调用。按 `Ctrl+C` 停止本地服务。
+在浏览器打开的页面里添加一个服务器，类型选 **Streamable HTTP**，URL 填 `http://127.0.0.1:8787/mcp`，然后连接并列出工具，就能看到三个工具并手动调用。界面因版本而异：
+
+- **v2（服务器卡片界面）：** 点 **Add Servers** 手动添加；或者在自带的 HTTP 示例卡片上点 **Clone**，再点 **Edit** 改名字和 URL。然后拨动卡片右上角的开关连接，进入该服务器查看 Tools。
+- **旧版：** 把 Transport Type 选为 **Streamable HTTP**，填 URL 后点 **Connect**，再到 **Tools** 标签点 **List Tools**。
+
+测试完在运行 `npm run dev` 的终端按 `Ctrl+C` 停止本地服务。
 
 ## 2. 第一次部署
 

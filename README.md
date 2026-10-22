@@ -18,7 +18,13 @@ Your agent does the talking, remembering and reminding. This project only suppli
 
 ## Connect it to your agent
 
-You need the server's URL. Until the public endpoint is announced here, [deploy your own](#self-hosting) (free on Cloudflare) and use `https://<your-worker>.workers.dev/mcp`.
+**Official endpoint:**
+
+```
+https://openjetlag-mcp.willbuildtolast.workers.dev/mcp
+```
+
+This is the only URL maintained by this project. You can also [host your own](#self-hosting) (free on Cloudflare).
 
 | Agent | How |
 |---|---|
@@ -99,7 +105,6 @@ Contributions are welcome, especially from people who know circadian science. Pl
 
 ## Roadmap
 
-- Public hosted endpoint
 - Privacy-preserving usage metrics (aggregate counts only)
 - Adaptive re-planning from reported sleep ("I only slept 4 hours")
 - Pre-trip shifting that accounts for early departures

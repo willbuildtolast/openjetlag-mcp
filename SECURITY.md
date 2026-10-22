@@ -2,7 +2,7 @@
 
 ## Official endpoint
 
-The only official OpenJetLag MCP endpoint will be listed in this repository's README. Forks and look-alike servers are not maintained by this project; only connect servers you trust.
+The only official OpenJetLag MCP endpoint is `https://openjetlag-mcp.willbuildtolast.workers.dev/mcp`, also listed in this repository's README. Forks and look-alike servers are not maintained by this project; only connect servers you trust.
 
 ## Design
 

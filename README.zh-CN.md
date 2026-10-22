@@ -13,7 +13,13 @@ OpenJetLag 是一个开源的 [MCP](https://modelcontextprotocol.io)（Model Con
 
 ## 连接到你的 agent
 
-你需要服务器地址。在公共地址公布之前，可以[自己部署](#自行部署)（Cloudflare 免费额度即可），使用 `https://<你的-worker>.workers.dev/mcp`。
+**官方地址：**
+
+```
+https://openjetlag-mcp.willbuildtolast.workers.dev/mcp
+```
+
+这是本项目维护的唯一官方地址。你也可以[自己部署](#自行部署)（Cloudflare 免费额度即可）。
 
 | Agent | 方法 |
 |---|---|
