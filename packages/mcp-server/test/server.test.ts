@@ -181,3 +181,14 @@ describe('HTTP surface', () => {
     expect(body.result.content[0].text).toMatch(/Naps/);
   });
 });
+
+describe('calendar folding', () => {
+  it('folds long multi-byte lines without splitting characters and unfolds back to the original', async () => {
+    const r = await call(await connect(), 'get_plan_calendar_file', { ...TRIP, language: 'zh' });
+    const ics: string = r.structuredContent.ics;
+    for (const line of ics.split('\r\n')) expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
+    expect(ics).not.toContain('�');
+    const unfolded = ics.replace(/\r\n /g, '');
+    expect(unfolded).toContain('DESCRIPTION:光照是调节生物钟最强的信号。请在此时段到户外晒太阳');
+  });
+});

@@ -110,3 +110,20 @@ npm run deploy
 - **`npm run deploy` 提示未登录：** 重新运行 `npx wrangler login`。
 - **agent 添加连接器失败：** 确认地址以 `/mcp` 结尾，且是 `https://`；用第 3 步的 `curl` 检查服务是否在线。
 - **想换 Worker 名称：** 修改 `packages/mcp-server/wrangler.toml` 里的 `name`，重新部署后地址会随之变化。
+
+## 8. 防止扣费与风险隔离
+
+**免费计划不会产生费用。** 超出每天 10 万次请求后，Cloudflare 返回 1027 错误，第二天 UTC 0 点重置；单次请求 CPU 超过 10ms 时返回 1102 错误。两种情况都只影响可用性，不扣费。本项目没有使用 KV、R2、Durable Objects 等可能计费的服务（部署时显示 "No bindings found"）。
+
+**守住免费计划：**
+- 在 **Workers & Pages** → **Plans** 确认当前是 **Free**，不要订阅 Workers Paid。
+- 最稳妥的隔离方式：这个项目用一个专门的 Cloudflare 账号，不绑定任何支付方式。
+- 将来如果升级付费计划，Cloudflare 没有硬性消费上限，只有通知性质的预算提醒（**Manage Account** → **Billing** → **Billable Usage** → **Create budget alert**）。届时应先在代码里加限流。
+
+**保护账号和密钥：**
+- Cloudflare 和 GitHub 都开启两步验证（2FA）。
+- 给 GitHub Actions 用的 API Token 只用 **Edit Cloudflare Workers** 模板，Account Resources 只选这个账号，并设置过期时间。Token 只存进 GitHub Secrets，不要写进代码或发给任何人。泄露时在 **API Tokens** 页面点 **Roll** 立即作废并重新生成。
+- 推送到 `main` 会自动部署，所以给 `main` 开启分支保护：仓库 **Settings** → **Branches**（或 **Rules** → **Rulesets**）→ 要求通过 Pull Request 合并、CI 通过后才能合并。外部 fork 发来的 PR 拿不到 Secrets，也不会触发部署。
+- 在公共电脑上用过 wrangler 后，运行 `npx wrangler logout`。
+
+**定期检查（每周看一次即可）：** 在该 Worker 的 **Metrics** 页面查看请求数是否接近每天 10 万、**Errors** 里有没有 "Exceeded CPU Time Limits"、CPU 时间中位数是否明显低于 10ms。

@@ -14,22 +14,33 @@ function escapeText(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
 }
 
-/** Fold lines longer than 75 octets (RFC 5545 §3.1). */
+/** UTF-8 byte length of one code point. */
+function utf8Bytes(cp: number): number {
+  return cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+}
+
+/** Fold lines longer than 75 octets (RFC 5545 §3.1), never splitting a character. */
 function fold(line: string): string {
-  const bytes = new TextEncoder();
-  if (bytes.encode(line).length <= 75) return line;
+  // Fast path: even if every UTF-16 unit were 3 bytes, the line fits.
+  if (line.length * 3 <= 75) return line;
   const parts: string[] = [];
-  let current = '';
-  for (const ch of line) {
+  let start = 0;
+  let bytes = 0;
+  let i = 0;
+  while (i < line.length) {
+    const cp = line.codePointAt(i)!;
+    const units = cp > 0xffff ? 2 : 1;
+    const b = utf8Bytes(cp);
     const limit = parts.length === 0 ? 75 : 74; // continuation lines start with a space
-    if (bytes.encode(current + ch).length > limit) {
-      parts.push(current);
-      current = ch;
-    } else {
-      current += ch;
+    if (bytes + b > limit) {
+      parts.push(line.slice(start, i));
+      start = i;
+      bytes = 0;
     }
+    bytes += b;
+    i += units;
   }
-  parts.push(current);
+  parts.push(line.slice(start));
   return parts.join('\r\n ');
 }
 
@@ -44,10 +55,11 @@ export function planKey(input: unknown): string {
 }
 
 export function toIcs(plan: JetLagPlan, reminders: Reminder[], key: string, now: Date): string {
+  const startById = new Map(plan.events.map((e) => [e.id, Date.parse(e.start.utc)]));
   const leadByEvent = new Map<string, number>();
   for (const r of reminders) {
-    const ev = plan.events.find((e) => e.id === r.event_id);
-    if (ev) leadByEvent.set(r.event_id, Math.round((Date.parse(ev.start.utc) - Date.parse(r.at_utc)) / 60_000));
+    const start = startById.get(r.event_id);
+    if (start !== undefined) leadByEvent.set(r.event_id, Math.round((start - Date.parse(r.at_utc)) / 60_000));
   }
 
   const lines = [
