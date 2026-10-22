@@ -152,13 +152,25 @@ describe('HTTP surface', () => {
     expect(res.headers.get('access-control-allow-origin')).toBe('*');
   });
   it('serves info and health endpoints', async () => {
-    expect((await (await handleRequest(new Request(`${BASE}/`))).json()).mcp_endpoint).toBe('/mcp');
+    expect((await (await handleRequest(new Request(`${BASE}/`))).json()).mcp_endpoint).toBe(`${BASE}/mcp`);
     expect((await (await handleRequest(new Request(`${BASE}/health`))).json()).ok).toBe(true);
     expect((await handleRequest(new Request(`${BASE}/nope`))).status).toBe(404);
   });
-  it('rejects GET/DELETE on the MCP endpoint (stateless server)', async () => {
-    expect((await handleRequest(new Request(`${BASE}/mcp`))).status).toBe(405);
+  it('rejects SSE GET streams and DELETE on the MCP endpoint (stateless server)', async () => {
+    const sse = await handleRequest(new Request(`${BASE}/mcp`, { headers: { accept: 'text/event-stream' } }));
+    expect(sse.status).toBe(405);
     expect((await handleRequest(new Request(`${BASE}/mcp`, { method: 'DELETE' }))).status).toBe(405);
+  });
+  it('describes itself to a browser or an agent that fetches the link', async () => {
+    const res = await handleRequest(new Request(`${BASE}/mcp`, { headers: { accept: 'text/html,*/*' } }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toMatch(/text\/markdown/);
+    const text = await res.text();
+    expect(text).toContain('custom MCP connector');
+    expect(text).toContain(`URL: ${BASE}/mcp`);
+    expect(text).toMatch(/Ask them to confirm/);
+    const root = await (await handleRequest(new Request(`${BASE}/`))).json();
+    expect(root.mcp_endpoint).toBe(`${BASE}/mcp`);
   });
   it('rejects oversized bodies before parsing', async () => {
     const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping', params: { pad: 'x'.repeat(70_000) } });
