@@ -26,6 +26,21 @@ https://openjetlag-mcp.willbuildtolast.workers.dev/mcp
 
 This is the only URL maintained by this project. You can also [host your own](#self-hosting) (free on Cloudflare).
 
+### Quick start for Meta Muse (one message)
+
+Paste this into a Muse chat and approve the connector when Muse asks:
+
+```
+Please add a custom MCP connector for me:
+- Name: OpenJetLag
+- Transport: remote Streamable HTTP
+- URL: https://openjetlag-mcp.willbuildtolast.workers.dev/mcp
+- Authentication: none
+After it's connected, use it whenever I mention a long flight or jet lag.
+```
+
+Then try: *"I fly from New York to London on Nov 10 at 19:00, landing Nov 11 at 07:00. I usually sleep 23:00–07:00. Help me with jet lag and set up reminders."* To remove it later: Settings → Connectors.
+
 | Agent | How |
 |---|---|
 | **Meta Muse** | Settings → Connectors → Add custom connector, paste the URL. Muse connects from Meta's cloud, so the URL must be public HTTPS. |

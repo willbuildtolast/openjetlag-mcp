@@ -21,6 +21,21 @@ https://openjetlag-mcp.willbuildtolast.workers.dev/mcp
 
 这是本项目维护的唯一官方地址。你也可以[自己部署](#自行部署)（Cloudflare 免费额度即可）。
 
+### Meta Muse 一句话安装
+
+把下面这段发到 Muse 的对话框，Muse 请求确认时点同意即可：
+
+```
+请帮我添加一个自定义 MCP 连接器：
+- 名称：OpenJetLag
+- 传输方式：远程 Streamable HTTP
+- URL：https://openjetlag-mcp.willbuildtolast.workers.dev/mcp
+- 认证：无（不需要登录）
+连接成功后，每当我提到长途航班或倒时差时都使用它。
+```
+
+然后试试：*"我 11 月 10 日 19:00 从纽约飞伦敦，11 日 07:00 落地，平时 23:00 睡 7:00 起，帮我倒时差，并设置好提醒。"* 以后想移除：设置 → Connectors。
+
 | Agent | 方法 |
 |---|---|
 | **Meta Muse** | 设置 → Connectors → Add custom connector，粘贴地址。Muse 从 Meta 云端连接，地址必须是公网 HTTPS。 |
