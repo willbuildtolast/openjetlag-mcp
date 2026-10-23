@@ -14,7 +14,7 @@ You ──▶ your agent (Muse, ChatGPT, Claude, …) ──MCP──▶ OpenJet
          conversation, memory, reminders            stateless, stores nothing       pure computation
 ```
 
-Your agent does the talking, remembering and reminding. This project only supplies the expertise: a deterministic planning engine and guidance on how to use it.
+Your agent does the talking, remembering and reminding. This project supplies the expertise: a deterministic planning engine, a ready-made series of proactive check-ins with exact send times and the facts behind each, and guidance that tells the agent to schedule them and write them in its own voice.
 
 ## Connect it to your agent
 
@@ -58,11 +58,11 @@ All tools are read-only and idempotent.
 
 | Tool | What it does |
 |---|---|
-| `plan_jetlag_trip` | Full plan from flight details and usual sleep times. Returns a readable schedule plus `structuredContent` with summary, days, events and ready-to-schedule `reminders` (exact ISO times, priority, message). `starting_from` returns only what is still ahead ("what should I do now?"). |
-| `get_plan_calendar_file` | The same plan as an iCalendar (.ics) file with alerts, for Google, Apple or Outlook calendars or a calendar connector. |
+| `plan_jetlag_trip` | Full plan from flight details and usual sleep times, plus `scheduled_messages`: about 3-4 proactive messages a day (morning briefing, light nudges, wind-down, flight) with exact send times and the facts behind each one (trip moment, body-clock progress, what to do, why); the agent writes and sends the messages in its own voice. `starting_from` returns only what is still ahead ("what should I do now?"). |
+| `get_plan_calendar_file` | The same plan as an iCalendar (.ics) file with alerts, when the traveller asks for a calendar or the agent cannot schedule messages. |
 | `explain_jetlag_topic` | Short explanations for "why" questions: overview, light, melatonin, caffeine, naps, direction, flight, safety. |
 
-Inputs to `plan_jetlag_trip`: origin and destination IANA time zones, local departure and arrival date and time, usual bedtime and wake time; optional `pre_trip_days` (default 3), `melatonin` (default true, timing only), `strategy` (`auto`), `language` (`en` or `zh`).
+Inputs to `plan_jetlag_trip`: origin and destination IANA time zones, local departure and arrival date and time, usual bedtime and wake time; optional `pre_trip_days` (default 3, fewer if departure is sooner), `melatonin` (default true, timing only), `strategy` (`auto`), `language` (`en` or `zh`), and `origin_city`, `destination_city` as the traveller names them.
 
 ## How the plan works
 

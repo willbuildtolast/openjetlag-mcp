@@ -40,9 +40,10 @@ const call = async (c: Client, name: string, args: Record<string, unknown>) =>
 describe('protocol', () => {
   it('initializes with server info and agent instructions', async () => {
     const c = await connect();
-    expect(c.getServerVersion()).toMatchObject({ name: 'openjetlag', version: '0.1.0' });
+    expect(c.getServerVersion()).toMatchObject({ name: 'openjetlag', version: '0.2.0' });
     expect(c.getInstructions()).toMatch(/plan_jetlag_trip/);
     expect(c.getInstructions()).toMatch(/never suggest a melatonin dose/);
+    expect(c.getInstructions()).toMatch(/Don't ask permission first and don't hand over a calendar file/);
   });
 
   it('lists three read-only tools with input schemas', async () => {
@@ -59,28 +60,88 @@ describe('protocol', () => {
 });
 
 describe('plan_jetlag_trip', () => {
-  it('returns a readable schedule and structured plan with reminders', async () => {
+  it('returns the plan, assistant next steps and proactive check-ins (facts, not scripts)', async () => {
     const r = await call(await connect(), 'plan_jetlag_trip', TRIP);
     expect(r.isError).toBeFalsy();
     const text = r.content[0].text;
     expect(text).toMatch(/America\/New_York → Europe\/London \(\+5 h\)/);
     expect(text).toMatch(/Safety notes/);
     expect(text).toMatch(/\[2026-11-11T07:00:00\+00:00\]/);
+    expect(text).toMatch(/FOR THE ASSISTANT/);
+    expect(text).toMatch(/without asking first/);
+    expect(text).toMatch(/These are not scripts/);
+    expect(text).toMatch(/pre_trip_days: 3/);
 
     const s = r.structuredContent;
     expect(s.status).toBe('ok');
     expect(s.summary.strategy).toBe('advance');
-    expect(s.safetyNotes.length).toBeGreaterThan(0);
-    expect(s.reminders.length).toBeGreaterThan(10);
-    for (const rem of s.reminders) {
-      expect(rem.at).toMatch(/[+-]\d{2}:\d{2}$/);
-      expect(Date.parse(rem.at)).toBe(Date.parse(rem.at_utc));
+    expect(s.settings).toMatchObject({ pre_trip_days: 3, pre_trip_days_reduced: false, melatonin: true, language: 'en' });
+
+    const msgs = s.scheduled_messages;
+    expect(msgs.length).toBeGreaterThan(8);
+    const sends = msgs.map((m: any) => Date.parse(m.send_at_utc));
+    expect(sends).toEqual([...sends].sort((a: number, b: number) => a - b));
+    for (const m of msgs) {
+      expect(Date.parse(m.send_at)).toBe(Date.parse(m.send_at_utc));
+      expect(['morning_briefing', 'flight', 'wind_down', 'nudge']).toContain(m.type);
+      expect(m).not.toHaveProperty('draft');
+      expect(m.focus.length).toBeGreaterThan(0);
+      for (const f of m.focus) {
+        expect(f.when).toMatch(/^\d{2}:\d{2}/);
+        expect(f.why.length).toBeGreaterThan(5);
+        expect(text).toContain(`${f.when} ${f.action}`);
+      }
+      expect(JSON.stringify(m)).not.toMatch(/\d\s*mg/i);
     }
-    // Sleep reminders fire 30 min early to wind down.
-    const sleepEvent = s.events.find((e: any) => e.kind === 'sleep');
-    const sleepRem = s.reminders.find((x: any) => x.event_id === sleepEvent.id);
-    expect(Date.parse(sleepEvent.start.utc) - Date.parse(sleepRem.at_utc)).toBe(30 * 60_000);
-    expect(s.reminders.some((x: any) => x.kind === 'flight')).toBe(false);
+    // About 3-4 messages a day, not one per event.
+    const perDay = new Map<string, number>();
+    for (const m of msgs) perDay.set(m.send_at.slice(0, 10), (perDay.get(m.send_at.slice(0, 10)) ?? 0) + 1);
+    for (const n of perDay.values()) expect(n).toBeLessThanOrEqual(5);
+    expect(msgs.length).toBeLessThan(s.events.length / 2);
+
+    // Never sent during planned sleep (wind-downs come before it).
+    const sleeps = s.events.filter((e: any) => e.kind === 'sleep' || e.kind === 'in_flight_sleep');
+    for (const m of msgs.filter((x: any) => x.type !== 'wind_down')) {
+      const t = Date.parse(m.send_at_utc);
+      for (const e of sleeps) expect(t > Date.parse(e.start.utc) && t < Date.parse(e.end.utc)).toBe(false);
+    }
+
+    // Briefings go out at wake-up and carry the trip context.
+    const first = msgs[0];
+    expect(first).toMatchObject({ type: 'morning_briefing', send_at: '2026-11-07T07:00:00-05:00' });
+    expect(first.trip).toMatchObject({ moment: '3 days before departure', destination: 'London', days_to_departure: 3, day_in_destination: null, first_day_of_plan: true, body_clock_adjusted_hours: 0, body_clock_total_hours: 5 });
+    expect(first.focus.map((f: any) => f.kind)).toEqual(['meal', 'seek_light']);
+    expect(first.later_today.map((x: any) => x.kind)).toEqual(expect.arrayContaining(['caffeine_cutoff', 'sleep']));
+    const arrival = msgs.find((m: any) => m.trip.day_in_destination === 1 && m.type === 'morning_briefing');
+    expect(arrival.send_at).toBe('2026-11-11T07:00:00+00:00');
+    expect(arrival.trip.body_clock_adjusted_hours).toBe(4); // 3 h before leaving + 1 h over the flight night
+  });
+
+  it('uses the traveller\'s city names and language in the notes', async () => {
+    const r = await call(await connect(), 'plan_jetlag_trip', { ...TRIP, language: 'zh', origin_city: '纽约', destination_city: '伦敦' });
+    const msgs = r.structuredContent.scheduled_messages;
+    expect(msgs[0].trip.moment).toBe('出发前 3 天');
+    expect(msgs.some((m: any) => m.trip.moment === '抵达伦敦第 1 天')).toBe(true);
+    expect(msgs[0].focus.find((f: any) => f.kind === 'seek_light').action).toBe('晒光');
+    expect(r.content[0].text).toMatch(/以下只是事实和意图，措辞由你决定/);
+  });
+
+  it('plans fewer pre-trip days when departure is soon, and respects an explicit value', async () => {
+    const c = await connect();
+    // FIXED_NOW is 2026-10-21; depart on the 22nd -> only 1 day available.
+    const soon = { ...TRIP, departure_date: '2026-10-22', arrival_date: '2026-10-23' };
+    const auto = (await call(c, 'plan_jetlag_trip', soon)).structuredContent;
+    expect(auto.settings).toMatchObject({ pre_trip_days: 1, pre_trip_days_reduced: true });
+    expect(auto.days.filter((d: any) => d.phase === 'pre_trip')).toHaveLength(1);
+    const explicit = (await call(c, 'plan_jetlag_trip', { ...soon, pre_trip_days: 3 })).structuredContent;
+    expect(explicit.settings).toMatchObject({ pre_trip_days: 3, pre_trip_days_reduced: false });
+  });
+
+  it('only returns messages that are still ahead', async () => {
+    const r = await call(await connect(), 'plan_jetlag_trip', { ...TRIP, starting_from: '2026-11-11T08:00:00+00:00' });
+    const msgs = r.structuredContent.scheduled_messages;
+    expect(msgs.length).toBeGreaterThan(0);
+    for (const m of msgs) expect(Date.parse(m.send_at_utc)).toBeGreaterThanOrEqual(Date.parse('2026-11-11T08:00:00Z'));
   });
 
   it('renders in Chinese', async () => {

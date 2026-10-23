@@ -53,8 +53,8 @@ https://openjetlag-mcp.willbuildtolast.workers.dev/mcp
 
 | 工具 | 作用 |
 |---|---|
-| `plan_jetlag_trip` | 根据航班和平时作息生成完整计划。返回可读的日程，以及包含概要、每日安排、事件和可直接设置的 `reminders`（精确 ISO 时间、优先级、提醒文案）的 `structuredContent`。传入 `starting_from` 可只返回之后的事项（用于"我现在该做什么？"）。 |
-| `get_plan_calendar_file` | 把同一份计划导出为带提醒的 iCalendar（.ics）文件，可导入 Google、Apple、Outlook 日历，或通过日历连接器添加。 |
+| `plan_jetlag_trip` | 根据航班和平时作息生成完整计划，以及 `scheduled_messages`：每天约 3-4 条主动消息（晨间简报、光照提醒、睡前收尾、登机提醒），带精确发送时间和每条背后的事实（旅程阶段、生物钟进度、做什么、为什么），由 agent 用自己的语气撰写并按时在对话中发送。传入 `starting_from` 可只返回之后的事项（用于"我现在该做什么？"）。可选参数 `origin_city`、`destination_city` 传入用户习惯的城市名。 |
+| `get_plan_calendar_file` | 用户要求日历文件、或 agent 无法定时发消息时，把计划导出为带提醒的 iCalendar（.ics）文件。 |
 | `explain_jetlag_topic` | 回答"为什么"的简短科普：原理概述、光照、褪黑素、咖啡因、午睡、飞行方向、飞行途中、安全。 |
 
 ## 隐私

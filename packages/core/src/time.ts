@@ -88,7 +88,8 @@ const pad = (n: number, w = 2) => String(Math.abs(n)).padStart(w, '0');
 export function toLocalTime(ms: number, timeZone: string): LocalTime {
   const rounded = Math.round(ms / MINUTE_MS) * MINUTE_MS;
   const p = wallParts(rounded, timeZone);
-  const off = offsetMinutes(rounded, timeZone);
+  // Offset from the same wall-clock parts (one Intl call instead of two).
+  const off = Math.round((Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - rounded) / MINUTE_MS);
   const date = `${p.year}-${pad(p.month)}-${pad(p.day)}`;
   const time = `${pad(p.hour)}:${pad(p.minute)}`;
   const sign = off < 0 ? '-' : '+';

@@ -1,23 +1,26 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker';
-import { ENGINE_VERSION, JetLagInputError, generatePlan, type PlanInput } from '@openjetlag/core';
+import { ENGINE_VERSION, JetLagInputError, generatePlan, toLocalTime, type PlanInput } from '@openjetlag/core';
 import { z } from 'zod';
-import { renderPlan } from './format.js';
+import { renderPlan, type PlanSettings } from './format.js';
 import { planKey, toIcs } from './ics.js';
 import { TOPICS, explain } from './knowledge.js';
+import { buildMessages } from './messages.js';
 import { buildReminders, upcoming } from './reminders.js';
 
-export const SERVER_VERSION = '0.1.0';
+export const SERVER_VERSION = '0.2.0';
 
-export const INSTRUCTIONS = `OpenJetLag turns you into a jet lag coach. It computes a science-based, day-by-day plan (light, sleep, caffeine, naps, optional melatonin timing) from a flight and the traveller's usual sleep schedule. All tools are read-only and store nothing.
+const DEFAULT_PRE_TRIP_DAYS = 3;
 
-How to help the traveller:
-1. Collect: departure and arrival cities, local departure and arrival date and time, usual bedtime and wake time. Ask in one short message; read flight details from email or calendar if you have access. Convert cities to IANA time zones yourself.
-2. Optional preferences (sensible defaults exist): days to start adjusting before departure (default 3; use fewer if they cannot change their routine at home), whether they are open to melatonin (default yes, timing only).
-3. Call plan_jetlag_trip. Summarise the strategy in a few sentences, show the safety notes, and walk through the next day or two rather than the whole plan at once.
-4. Be proactive: if you can schedule messages or reminders, offer to create one per entry in structuredContent.reminders (each has an exact "at" time); high-priority ones matter most. Otherwise offer get_plan_calendar_file so the traveller can import the plan into their calendar.
-5. When asked "what should I do now/today", call plan_jetlag_trip again with the same trip and starting_from set to the current time.
-6. If the flight, sleep habits or preferences change, recompute rather than editing times by hand. Use explain_jetlag_topic when the traveller asks why.
+export const INSTRUCTIONS = `OpenJetLag makes you the traveller's personal jet lag concierge. It computes a science-based plan (light, sleep, caffeine, naps, optional melatonin timing) from a flight and their usual sleep schedule, plus a ready-made series of proactive messages. All tools are read-only and store nothing.
+
+How to help:
+1. Collect in one short message, skipping anything you already know from email or calendar: departure and arrival cities, local departure and arrival date and time, usual bedtime and wake time. Optional: how many days before departure they can start adjusting, and whether they're open to melatonin. Convert cities to IANA time zones yourself, and also pass the city names.
+2. Call plan_jetlag_trip.
+3. Straight away, schedule every entry of scheduled_messages as a message to the traveller in this conversation at its send_at time, using your scheduling, background-task or reminder ability, and keep each entry's facts with the job. Don't ask permission first and don't hand over a calendar file instead: timely, proactive check-ins are the service the traveller asked for. Use get_plan_calendar_file only if they ask for a calendar, or if you genuinely cannot schedule messages.
+4. Then reply briefly: the strategy in a sentence or two, the safety notes, and what you've set up (for example "about three short messages a day; the first one tomorrow at 07:00"). Tell them they can say "fewer messages", "pause" or "stop" at any time; for "fewer", keep only the morning briefings and wind-downs.
+5. The check-ins carry facts, not scripts: write each message yourself, in your own voice, when it's due. Say what to do and when, why it matters for this trip (the countdown or progress), and offer an easy option, using whatever you know at that moment (weather, their calendar, how they slept). Keep every time exactly as given, and never make them feel guilty about a missed step.
+6. For "what should I do now?" or changed plans, call plan_jetlag_trip again with the same details and the same pre_trip_days (shown in the result), adding starting_from for "now". If they missed a step, reassure them and continue with the plan; never invent times.
 
 Never present the plan as medical advice and never suggest a melatonin dose; refer to the product label or a clinician.`;
 
@@ -33,17 +36,45 @@ const tripShape = {
   arrival_time: z.string().regex(TIME).describe('Arrival time, local to the destination, 24-hour HH:mm.'),
   usual_bedtime: z.string().regex(TIME).describe("Traveller's usual bedtime at home, HH:mm."),
   usual_wake_time: z.string().regex(TIME).describe("Traveller's usual wake time at home, HH:mm."),
-  pre_trip_days: z.number().int().min(0).max(7).optional().describe('Days before departure to start adjusting at home. Default 3; 0 if they cannot change their routine before leaving.'),
+  pre_trip_days: z
+    .number()
+    .int()
+    .min(0)
+    .max(7)
+    .optional()
+    .describe('Days before departure to start adjusting at home. If omitted: 3, or fewer if departure is sooner. 0 if they cannot change their routine before leaving. When recalculating, pass the value shown in the previous result.'),
   melatonin: z.boolean().optional().describe('Include optional melatonin timing (never a dose). Default true; false if the traveller prefers no supplements.'),
   strategy: z.enum(['auto', 'advance', 'delay']).optional().describe('Leave as "auto" unless the traveller explicitly wants a direction.'),
-  language: z.enum(['en', 'zh']).optional().describe('Language for plan text: "en" (default) or "zh" (Simplified Chinese).'),
+  language: z.enum(['en', 'zh']).optional().describe('Language for plan text and check-in notes: "en" (default) or "zh" (Simplified Chinese). Match the traveller.'),
+  origin_city: z.string().max(60).optional().describe('Departure city as the traveller says it, e.g. "New York" or "纽约". Used in check-in notes.'),
+  destination_city: z.string().max(60).optional().describe('Destination city as the traveller says it, e.g. "London" or "伦敦".'),
 };
 
 type TripArgs = {
   [K in keyof typeof tripShape]: z.infer<(typeof tripShape)[K]>;
 };
 
-function toPlanInput(a: TripArgs): PlanInput {
+function dayDiff(a: string, b: string): number {
+  const toUtc = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
+  return Math.round((toUtc(a) - toUtc(b)) / 86_400_000);
+}
+
+/**
+ * Pre-trip days actually available: a plan that assumes three days of shifting at home
+ * is wrong if the flight is tomorrow. An explicit value is always respected so that
+ * recalculations during the trip reproduce the same plan.
+ */
+function effectivePreTripDays(a: TripArgs, now: Date): number {
+  if (a.pre_trip_days !== undefined) return a.pre_trip_days;
+  try {
+    const today = toLocalTime(now.getTime(), a.origin_time_zone).date;
+    return Math.max(0, Math.min(DEFAULT_PRE_TRIP_DAYS, dayDiff(a.departure_date, today)));
+  } catch {
+    return DEFAULT_PRE_TRIP_DAYS; // invalid zone: generatePlan reports it properly
+  }
+}
+
+function toPlanInput(a: TripArgs, preTripDays: number): PlanInput {
   return {
     originTimeZone: a.origin_time_zone,
     destinationTimeZone: a.destination_time_zone,
@@ -51,7 +82,7 @@ function toPlanInput(a: TripArgs): PlanInput {
     arrival: { date: a.arrival_date, time: a.arrival_time },
     habitualSleep: { bedtime: a.usual_bedtime, wakeTime: a.usual_wake_time },
     options: {
-      preTripDays: a.pre_trip_days,
+      preTripDays,
       melatonin: a.melatonin,
       strategy: a.strategy,
       locale: a.language,
@@ -91,22 +122,40 @@ export function createServer(opts: ServerOptions = {}): McpServer {
     {
       title: 'Plan jet lag adjustment',
       description:
-        'Create a day-by-day jet lag plan for a flight: when to seek or avoid light, sleep, stop caffeine, avoid naps, and optional melatonin timing, from the days before departure until the body clock matches the destination. Returns a readable schedule plus structuredContent with the summary, days, events and ready-to-schedule reminders (exact ISO times). Pass starting_from to get only what is still ahead.',
+        "Create a jet lag plan for a flight, plus a ready-to-schedule series of proactive check-ins (morning briefing, timely light nudges, wind-down before bed; about 3-4 a day). Each check-in has an exact send time and the facts behind it (trip moment, body-clock progress, what to do, why, options); you write the actual messages. Covers the days before departure until the body clock matches the destination. Pass starting_from to get only what is still ahead.",
       inputSchema: {
         ...tripShape,
-        starting_from: z.string().datetime({ offset: true }).optional().describe('ISO 8601 date-time with offset (e.g. the current time). Only events that have not yet finished are returned.'),
+        starting_from: z.string().datetime({ offset: true }).optional().describe('ISO 8601 date-time with offset, usually the current time. Only events not yet finished and messages not yet due are returned.'),
       },
       annotations: { title: 'Plan jet lag adjustment', ...READ_ONLY },
     },
     async (args) => {
       try {
-        const full = generatePlan(toPlanInput(args));
-        const plan = args.starting_from ? upcoming(full, Date.parse(args.starting_from)) : full;
-        const reminders = buildReminders(plan.events);
+        const nowDate = now();
+        const preTripDays = effectivePreTripDays(args, nowDate);
+        const full = generatePlan(toPlanInput(args, preTripDays));
+        const fromMs = Math.max(nowDate.getTime(), args.starting_from ? Date.parse(args.starting_from) : -Infinity);
+        const view = args.starting_from ? upcoming(full, Date.parse(args.starting_from)) : full;
         const lang = args.language ?? 'en';
+        const messages = buildMessages(
+          full,
+          { lang, originCity: args.origin_city, destinationCity: args.destination_city },
+          fromMs,
+        );
+        const settings: PlanSettings = {
+          pre_trip_days: preTripDays,
+          pre_trip_days_reduced: args.pre_trip_days === undefined && preTripDays < DEFAULT_PRE_TRIP_DAYS,
+          melatonin: args.melatonin ?? true,
+          language: lang,
+        };
         return {
-          content: [{ type: 'text', text: renderPlan(plan, reminders, lang) }],
-          structuredContent: { ...plan, reminders } as unknown as Record<string, unknown>,
+          content: [{ type: 'text', text: renderPlan(view, messages, lang, settings) }],
+          structuredContent: {
+            ...view,
+            scheduled_messages: messages,
+            settings,
+            generated_at: nowDate.toISOString(),
+          } as unknown as Record<string, unknown>,
         };
       } catch (err) {
         return inputError(err);
@@ -119,13 +168,13 @@ export function createServer(opts: ServerOptions = {}): McpServer {
     {
       title: 'Export plan as calendar file',
       description:
-        'Return the same jet lag plan as an iCalendar (.ics) file with built-in alerts, for importing into Google Calendar, Apple Calendar or Outlook, or for adding through a calendar connector. Use the same trip details as plan_jetlag_trip.',
+        'Only when the traveller asks for a calendar file, or when you cannot schedule messages yourself: return the jet lag plan as an iCalendar (.ics) file with alerts, for Google, Apple or Outlook calendars or a calendar connector. Use the same trip details as plan_jetlag_trip.',
       inputSchema: tripShape,
       annotations: { title: 'Export plan as calendar file', ...READ_ONLY },
     },
     async (args) => {
       try {
-        const input = toPlanInput(args);
+        const input = toPlanInput(args, effectivePreTripDays(args, now()));
         const plan = generatePlan(input);
         if (plan.status !== 'ok') {
           return { content: [{ type: 'text', text: `${plan.summary.notes.join(' ')} No calendar file was created.` }] };

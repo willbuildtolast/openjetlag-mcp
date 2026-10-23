@@ -406,9 +406,14 @@ export function generatePlan(input: PlanInput): JetLagPlan {
   const days = [...dayMap.values()];
   // A cycle belongs to the day on which you wake up from it.
   const wakeOf = (i: number) => (i === 0 ? firstWake : plannedSleepEnd[i - 1]);
+  const wakeKeys = cycles.map((cy) => {
+    const tz = tzFor(wakeOf(cy.index));
+    return `${tz}|${localDate(wakeOf(cy.index), tz)}`;
+  });
   days.forEach((d, i) => {
     d.index = i + 1;
-    const c = cycles.find((cy) => localDate(wakeOf(cy.index), d.timeZone) === d.date && tzFor(wakeOf(cy.index)) === d.timeZone);
+    const k = wakeKeys.indexOf(`${d.timeZone}|${d.date}`);
+    const c = k >= 0 ? cycles[k] : undefined;
     if (c) d.bodyClock = { cbtMin: toLocalTime(c.cbt, d.timeZone), remainingShiftHours: c.remainingStart };
   });
 
